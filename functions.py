@@ -146,3 +146,85 @@ def draw_angle(org :tuple, image, angle):
   image = cv2.putText(image, str(angle), org, font, 
                     fontScale, color, thickness, cv2.LINE_AA)
   return image
+
+def draw_landmarks(results, mp_drawing,mp_pose,image):
+   # do not display hand, feet
+  for idx, landmark in enumerate(results.pose_landmarks.landmark):
+    if idx in [1,2,3,4,5,6,7,8,9,10,17,18,19,20,21,22,29,30,31,32]:
+        results.pose_landmarks.landmark[idx].visibility = 0
+
+  mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                              mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=2, circle_radius=2),
+                              mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2))
+  return image
+
+def get_frames_angles(image_name:str, video_path:str)->tuple:
+  
+  mp_pose,mp_drawing = set_up_pose_detection_model()
+  cap = cv2.VideoCapture(video_path)
+  out = get_video_writer(image_name,video_path)
+  img_count = 0
+  output_images = []
+  frames= []
+
+  max_angle_right = 0
+  with mp_pose.Pose(
+      min_detection_confidence=0.5,
+      min_tracking_confidence=0.5) as pose:
+    while cap.isOpened():
+      success, image = cap.read()
+    
+      if not success:
+        print("Ignoring empty camera frame.")
+        # If loading a video, use 'break' instead of 'continue'.
+        break
+      image,h,w = resize_image(image)
+       
+      image, results =pose_process_image(image, pose)
+
+      # Extract landmarks
+      try:
+          landmarks = results.pose_landmarks.landmark  
+          angles , max_angle_right = plot_angles_from_frames(mp_pose, landmarks, image, h, w, max_angle_right)
+          frames.append(angles)
+        
+          image = draw_landmarks(results, mp_drawing,mp_pose,image)
+          out.write(image)
+
+          # cv2_imshow(image) # in python IDE, change cv2_imshow to cv2.imshow('title of frame/image', image)
+          
+          outImageFile = f"{image_name}/{image_name}{img_count}.jpg"
+          cv2.imwrite(outImageFile, image)
+          img_count += 1
+      except:
+          pass
+
+      if cv2.waitKey(5) & 0xFF == 27:
+        break
+
+  cap.release()
+  out.release()
+  
+  return frames, max_angle_right
+
+def add_stage(frames, max_value):
+  stage = 1
+  for frame in frames:
+    if frame[-1] == max_value:
+      stage = 0
+    # print(frame)
+    frame.append(stage)
+  return frames
+
+
+coach_frames, max_angle_right = get_frames_angles(image_name= 'coach', video_path="woods.mov")
+coach_frames = add_stage(coach_frames, max_angle_right)
+student_frames,max_angle_right = get_frames_angles(image_name= 'student', video_path="woods.mov")
+student_frames = add_stage(student_frames, max_angle_right)
+
+
+student_n_cluster = 4
+print(student_n_cluster)
+X = np.array(student_frames)
+kmeans_student = KMeans(n_clusters=student_n_cluster, random_state=0).fit(X)
+print(kmeans_student.labels_)
