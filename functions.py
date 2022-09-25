@@ -8,7 +8,7 @@ import os
 from sklearn import metrics
 from sklearn.model_selection import ParameterGrid
 from sklearn.cluster import KMeans
-
+# Working with Peter today
 
 # Create function that sets up our mediapipe pose model
 
@@ -39,7 +39,7 @@ def resize_image(image):
     # Get height and width of image
     # Resize it to half its height and width 
     # Return 3 things (new image, new height, new width)
-    h,w = image.shape
+    h,w,_ = image.shape
     h = h // 2
     w = w // 2
 
@@ -55,10 +55,10 @@ def pose_process_image(image,pose):
 
     #return the original image AND the result image
 
-    results = pose.process(image)
-    return image,results
+    processed_image = pose.process(image)
+    return image,processed_image
     
-def plot_angles_from_frames(mp_pose,landmarks, image,h, w, max_angle_right = 0, ):
+def plot_angles_from_frames(mp_pose,landmarks, image,h, w):
   angles = []
   val =  50
   angle, image = plot_angle(mp_pose.PoseLandmark.LEFT_SHOULDER.value,
@@ -78,13 +78,13 @@ def plot_angles_from_frames(mp_pose,landmarks, image,h, w, max_angle_right = 0, 
           mp_pose.PoseLandmark.RIGHT_ANKLE.value,landmarks, image,h, w-val)
   angles.append(angle)
 
-  angle, image = plot_angle(mp_pose.PoseLandmark.LEFT_SHOULDER.value, 
-                            mp_pose.PoseLandmark.LEFT_HIP.value, 
-                            mp_pose.PoseLandmark.LEFT_KNEE.value,landmarks, image,h, w+val)
+  angle, image = plot_angle(mp_pose.PoseLandmark.LEFT_ELBOW.value, 
+                            mp_pose.PoseLandmark.LEFT_SHOULDER.value, 
+                            mp_pose.PoseLandmark.LEFT_HIP.value,landmarks, image,h, w+val)
   angles.append(angle)
-  angle, image = plot_angle(mp_pose.PoseLandmark.RIGHT_SHOULDER.value, 
-                            mp_pose.PoseLandmark.RIGHT_HIP.value, 
-                            mp_pose.PoseLandmark.RIGHT_KNEE.value,landmarks, image,h, w-val)
+  angle, image = plot_angle(mp_pose.PoseLandmark.RIGHT_ELBOW.value, 
+                            mp_pose.PoseLandmark.RIGHT_SHOUDLER.value, 
+                            mp_pose.PoseLandmark.RIGHT_HIP.value,landmarks, image,h, w-val)
   angles.append(angle)
   
 
@@ -98,10 +98,9 @@ def plot_angles_from_frames(mp_pose,landmarks, image,h, w, max_angle_right = 0, 
 
   angles.append(angle_wrist_shoulder_hip_left)
   angles.append(angle_wrist_shoulder_hip_right)
-  max_angle_right = max(max_angle_right, angle_wrist_shoulder_hip_right) 
-  # print(max_angle_right)
 
-  return angles, max_angle_right
+
+  return angles
 
 
 def plot_angle(p1,p2, p3,landmarks, image,h, w):
@@ -152,22 +151,20 @@ def draw_landmarks(results, mp_drawing,mp_pose,image):
   for idx, landmark in enumerate(results.pose_landmarks.landmark):
     if idx in [1,2,3,4,5,6,7,8,9,10,17,18,19,20,21,22,29,30,31,32]:
         results.pose_landmarks.landmark[idx].visibility = 0
-
+  
   mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
                               mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=2, circle_radius=2),
                               mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2))
   return image
 
 def get_frames_angles(image_name:str, video_path:str)->tuple:
-  
-  mp_pose,mp_drawing = set_up_pose_detection_model()
+  mp_pose, mp_drawing = set_up_pose_detection_model()
   cap = cv2.VideoCapture(video_path)
   out = get_video_writer(image_name,video_path)
-  img_count = 0
+  img_count = 1
   output_images = []
-  frames= []
+  frames = []
 
-  max_angle_right = 0
   with mp_pose.Pose(
       min_detection_confidence=0.5,
       min_tracking_confidence=0.5) as pose:
@@ -181,46 +178,31 @@ def get_frames_angles(image_name:str, video_path:str)->tuple:
       image,h,w = resize_image(image)
        
       image, results =pose_process_image(image, pose)
-
-      # Extract landmarks
+      cv2.imshow('Image',image)
+      
       try:
-          landmarks = results.pose_landmarks.landmark  
-          angles , max_angle_right = plot_angles_from_frames(mp_pose, landmarks, image, h, w, max_angle_right)
-          frames.append(angles)
-        
-          image = draw_landmarks(results, mp_drawing,mp_pose,image)
-          out.write(image)
+        landmarks = results.pose_landmarks.landmark
+        angles = plot_angles_from_frames(mp_pose,landmarks, image,h, w)
+        frames.append(angles)
 
-          # cv2_imshow(image) # in python IDE, change cv2_imshow to cv2.imshow('title of frame/image', image)
-          
-          outImageFile = f"{image_name}/{image_name}{img_count}.jpg"
-          cv2.imwrite(outImageFile, image)
-          img_count += 1
       except:
-          pass
-
+        print('Failed')
+      
       if cv2.waitKey(5) & 0xFF == 27:
         break
 
-  cap.release()
-  out.release()
-  
-  return frames, max_angle_right
 
-def add_stage(frames, max_value):
-  stage = 1
-  for frame in frames:
-    if frame[-1] == max_value:
-      stage = 0
-    # print(frame)
-    frame.append(stage)
+  
+  
   return frames
 
 
-coach_frames, max_angle_right = get_frames_angles(image_name= 'coach', video_path="woods.mov")
-coach_frames = add_stage(coach_frames, max_angle_right)
-student_frames,max_angle_right = get_frames_angles(image_name= 'student', video_path="woods.mov")
-student_frames = add_stage(student_frames, max_angle_right)
+
+
+# coach_frames, max_angle_right = get_frames_angles(image_name= 'coach', video_path="coach1.mp4")
+# coach_frames = add_stage(coach_frames, max_angle_right)
+student_frames,max_angle_right = get_frames_angles(image_name= 'student', video_path="coach1.mp4")
+
 
 
 student_n_cluster = 4
