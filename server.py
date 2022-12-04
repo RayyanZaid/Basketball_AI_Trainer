@@ -1,11 +1,17 @@
-from distutils.command.config import config
 import os
-from sqlite3 import ProgrammingError
 from flask import Flask, request,abort,jsonify
 
 
 app = Flask(__name__)
 app.config['UPLOAD_EXTENSIONS'] = ['.mp4','.MOV']
+
+
+
+@app.route('/' , methods=['GET', 'POST'])
+def welcome():
+    return "<h2> Hello and welcome to my basketball project </h2>"
+
+
 
 @app.route('/analize' , methods = ['POST'])
 def compareVideos():
@@ -41,4 +47,5 @@ def compareVideos():
 
 
 
-    
+if __name__ == "__main__":
+    app.run()
